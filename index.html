@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passport Photo Cropping</title>
+</head>
+<body>
+    <h2>Upload a Photo for Passport-Sized Cropping</h2>
+    <input type="file" id="upload" accept="image/*"><br>
+    <span>max photo size is 200KB</span>
+    <span id="warning" style="color: red; margin-left: 10px; display: none;">File size exceeds 200 KB</span><br>
+    <canvas id="canvas" style="display: none;"></canvas>
+    <img id="preview" style="width: 200px; height: 200px; border: 1px solid #000; margin-top: 10px;">
+    <button id="download" style="display: none; margin-top: 10px;">Download Cropped Image</button>
+
+    <!-- Load the local face-api.js library -->
+    <script src="face-api.min.js"></script>
+
+    <script>
+        async function loadModels() {
+            console.log("Loading face detection model...");
+            await faceapi.nets.ssdMobilenetv1.loadFromUri('models');
+            console.log("Model loaded successfully.");
+        }
+
+        async function handleImage(event) {
+            const file = event.target.files[0];
+            console.log("File selected:", file.name);
+
+            // Check file size (200 KB limit)
+            const maxSize = 200 * 1024; // 200 KB in bytes
+            const warning = document.getElementById('warning');
+            
+            if (file.size > maxSize) {
+                warning.style.display = 'inline'; // Show warning message
+                console.warn("File size exceeds the limit of 200 KB.");
+                return;
+            } else {
+                warning.style.display = 'none'; // Hide warning message
+                console.log("File size is within the limit.");
+            }
+
+            const img = await faceapi.bufferToImage(file);
+            console.log("Image loaded successfully.");
+
+            const canvas = document.getElementById('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const context = canvas.getContext('2d');
+            context.drawImage(img, 0, 0);
+            console.log("Image drawn on canvas with dimensions:", img.width, "x", img.height);
+
+            const detection = await faceapi.detectSingleFace(canvas);
+            if (detection) {
+                console.log("Face detected at coordinates:", detection.box);
+
+                const { x, y, width, height } = detection.box;
+
+                
+                const padding = 150; // Set padding for passport photo size and alignment
+                console.log("Padding set to:", padding);
+
+                const faceCanvas = document.createElement('canvas');
+                faceCanvas.width = 200; // Final image width (2 inches at 100 DPI)
+                faceCanvas.height = 200; // Final image height (2 inches at 100 DPI)
+                const faceContext = faceCanvas.getContext('2d');
+
+                // Calculate new crop dimensions with padding
+                const cropX = Math.max(0, x - padding);
+                const cropY = Math.max(0, y - padding);
+                const cropWidth = Math.min(canvas.width - cropX, width + 2 * padding);
+                const cropHeight = Math.min(canvas.height - cropY, height + 2 * padding);
+                console.log("Cropping image with dimensions:", { cropX, cropY, cropWidth, cropHeight });
+
+                faceContext.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, 200, 200);
+                console.log("Face cropped and resized to 200x200 for passport photo.");
+
+                // Set cropped image preview
+                document.getElementById('preview').src = faceCanvas.toDataURL();
+                console.log("Cropped image preview set.");
+
+                // Enable download button
+                const downloadButton = document.getElementById('download');
+                downloadButton.style.display = 'block';
+                console.log("Download button displayed.");
+
+                downloadButton.onclick = function () {
+                    const link = document.createElement('a');
+                    link.download = 'passport-size-photo.jpg';
+                    link.href = faceCanvas.toDataURL('image/jpeg');
+                    link.click();
+                    console.log("Cropped image downloaded.");
+                };
+            } else {
+                console.warn("No face detected!");
+                alert("No face detected!");
+            }
+        }
+
+        document.getElementById('upload').addEventListener('change', handleImage);
+
+        // Load the face detection model
+        loadModels();
+    </script>
+</body>
+</html>
